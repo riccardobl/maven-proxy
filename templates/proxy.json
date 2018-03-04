@@ -1,0 +1,17 @@
+{
+    "addr":"0.0.0.0",
+    "port":8080,
+    "cache_dir": "/data",
+    "listing":true,
+    "repos": [
+        "https://repo1.maven.org/maven2/",
+        "https://jitpack.io/",
+        "https://clojars.org/repo/",
+        "https://dl.bintray.com/riccardo/thirdparty/",
+        "https://dl.bintray.com/riccardo/f3b",
+        "https://dl.bintray.com/riccardo/jme3-bullet-native/",
+        "https://dl.bintray.com/riccardo/v-hacd/",
+        "https://dl.bintray.com/riccardo/jme3-plugins/",
+        "https://jcenter.bintray.com/"
+    ]
+}
