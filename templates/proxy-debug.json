@@ -3,6 +3,11 @@
     "port":8080,
     "cache_dir": "./data",
     "listing":true,
+    "protocol":"http",
+    "https":{
+        "cert":"/tmp/cert94-192.168.2.20/cert.pem",
+        "key":"/tmp/cert94-192.168.2.20/cert-key.pem"
+    },
     "repos": [
         "https://repo1.maven.org/maven2/",
         "https://jitpack.io/",

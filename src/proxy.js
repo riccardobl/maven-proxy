@@ -1,9 +1,11 @@
 
 
 const Http = require('http');
+const Https = require('https');
 const Request = require('request');
 const Fs = require('fs');
 const BasicAuth = require('basic-auth');
+const Crypto = require("crypto");
 
 let config = process.argv[2];
 if (!config) config = "./proxy.json";
@@ -209,10 +211,12 @@ function getFromCache(path, resp) {
     // Process queue immediately
     loopQueue();
 }
+let options = {
+  
+}    
 
 
-
-Http.createServer(function (req, res) {   
+let req_handle = function (req, res) {
     let uri = req.url.substring(1);
     let authorized = true;
     if (Auth.length !== 0) {
@@ -232,13 +236,23 @@ Http.createServer(function (req, res) {
                     break;
                 }
             }
-        }           
-    }  
+        }
+    }
     if (!authorized) {
         res.statusCode = 401
         res.setHeader('WWW-Authenticate', 'Basic realm="maven-proxy"')
         res.end('Access denied')
-    }else  getFromCache(uri, res);
-}).listen(Config.port,Config.addr);
+    } else getFromCache(uri, res);
+};
+
+let server;
+if (Config.protocol === "https") {
+    options.cert = Fs.readFileSync(Config.https.cert);
+    options.key = Fs.readFileSync(Config.https.key);
+    server = Https.createServer(options, req_handle);
+} else {
+     server = Http.createServer( req_handle);
+}
+server.listen(Config.port, Config.addr);
 
 console.log("Server running", Config.addr + ":" + Config.port);
