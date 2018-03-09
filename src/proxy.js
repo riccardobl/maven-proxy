@@ -15,7 +15,7 @@ console.log("Config file", config);
 
 const Config = JSON.parse(Fs.readFileSync(config, 'utf8'));
 
-const Auth =Config.auth? Config.auth:[];
+const Auth = Config.auth ? Config.auth : [];
 
 
 console.log("Config", Config);
@@ -76,21 +76,27 @@ setInterval(loopQueue, 1000 / 10);
 
 let Path = {
     lock: function (path) {
+        // console.log("Lock", path);
         Fs.writeFile(path + ".lock", "1", function () { });
     },
 
     unlock: function (path) {
+        // console.log("Unock", path);
+
         Fs.unlink(path + ".lock", function () { });
     },
     isLocked: function (path) {
-       return Fs.existsSync(path + ".lock");
+        return Fs.existsSync(path + ".lock");
     },
     lockForDownload: function (path) {
+        console.log("Download Lock", path);
+
         Fs.writeFile(path + ".dl", "1", function () { });
 
     },
     unlockForDownload: function (path) {
-        if (Fs.existsSync(path + ".dl")) return true;
+        console.log("Download Unlock", path);
+        Fs.unlink(path + ".dl", function () { });
     },
     isLockedForDownload: function (path) {
         return Fs.existsSync(path + ".dl");
@@ -100,9 +106,9 @@ let Path = {
 }
 
 function downloadToCache(path, resp) {
- 
+
     // Lock path
-    Path.lock(Config.cache_dir + "/" + path );
+    Path.lock(Config.cache_dir + "/" + path);
 
     // Check if artifact exists at given url
     // calls callback(true) if found
@@ -110,13 +116,13 @@ function downloadToCache(path, resp) {
         let req = Request(url)
             .on('response', function (response) {
                 if (response.statusCode === 200) {
-                    console.log(path,"Found in", url);
+                    console.log(path, "Found in", url);
                     let outfs = Fs.createWriteStream(Config.cache_dir + "/" + path);
                     req.pipe(outfs)
                         .on('finish', function () {
                             callback(true);
-                            Path.unlock(Config.cache_dir + "/" + path ); // Everything has been written, unlock path
-                            getFromCache(path, resp,true); // Retrieve downloaded artifact
+                            Path.unlock(Config.cache_dir + "/" + path); // Everything has been written, unlock path
+                            getFromCache(path, resp, true); // Retrieve downloaded artifact
                         }).on("error", function (error) {
                             console.error("Error", error);
                             outfs.close();
@@ -142,14 +148,14 @@ function downloadToCache(path, resp) {
             return;
         }
         if (repo_i >= Config.repos.length) {
-            if (failed) {                
+            if (failed) {
                 if (failed) {
                     Path.unlock(Config.cache_dir + "/" + path);
                     resp.writeHead(404, { "Content-Type": "text/plain" });
                     resp.write("404 Not Found\n");
                     resp.end();
                 }
-            }            
+            }
             return;
         }
         // Build url from repo+path
@@ -174,8 +180,8 @@ function listDirectory(cache_path, resp) {
             resp.writeHead(500, { "Content-Type": "text/plain" });
             resp.write("500 Server Error\n");
             resp.end();
-        } else {   
-            resp.writeHead(200, {"Content-Type": "text/html"});
+        } else {
+            resp.writeHead(200, { "Content-Type": "text/html" });
             resp.write("<h1>Maven Proxy</h1><hr /><br />\n");
             if (Config.listing) {
                 for (let i = 0; i < files.length; i++) {
@@ -187,9 +193,9 @@ function listDirectory(cache_path, resp) {
                     console.log(file);
                     resp.write("<a href='" + file + "'>" + file + "</a><br />\n");
                 }
-            }    
-            resp.end();   
-        }    
+            }
+            resp.end();
+        }
     });
 
 }
@@ -204,11 +210,9 @@ function getFromCache(path, resp, is_dl_callback) {
             // console.log("skip");
             return false;
         }
-        Path.lock(cache_path);
 
-        if (!is_dl_callback&&Config.dont_cache_snapshots&&cache_path.substring(cache_path.indexOf("/")).indexOf("-SNAPSHOT") != -1 ) {
+        if (Config.dont_cache_snapshots && !is_dl_callback && cache_path.substring(cache_path.indexOf("/")).indexOf("-SNAPSHOT") != -1) {
             if (Path.isLockedForDownload(cache_path)) {
-                Path.unlock(cache_path);
                 // console.log("skip");
                 return false;
             }
@@ -220,23 +224,21 @@ function getFromCache(path, resp, is_dl_callback) {
 
         // Retuns from cache
         if (Fs.existsSync(cache_path)) {
-            Path.unlock(cache_path);
-            Path.lockForDownload(cache_path);
             if (!Fs.lstatSync(cache_path).isDirectory()) {
+                Path.lockForDownload(cache_path);
                 resp.writeHead(200, {
                     "Content-Type": "application/octet-stream"
                 });
                 Fs.createReadStream(Config.cache_dir + "/" + path)
-                .on('end', function () { 
-                    Path.unlock(cache_path);
+                    .on('end', function () {
+                        Path.unlockForDownload(cache_path);
                     }).on('error', function (err) {
-                        Path.unlock(cache_path);
+                        Path.unlockForDownload(cache_path);
                         console.log(err);
-                        
                     })
                     .pipe(resp)
             } else {
-                listDirectory(cache_path,resp);
+                listDirectory(cache_path, resp);
             }
         } else {
             // If not available, try to download it from the repos
@@ -246,10 +248,9 @@ function getFromCache(path, resp, is_dl_callback) {
             mkdir_p(p, 0777, function (err) {
                 if (err) {
                     console.error(err);
-                    resp.writeHead(500, {"Content-Type": "text/plain"});
+                    resp.writeHead(500, { "Content-Type": "text/plain" });
                     resp.write("500 Server Error\n");
                     resp.end();
-                    Path.unlock(cache_path);
                 } else downloadToCache(path, resp);
             });
         }
@@ -260,8 +261,8 @@ function getFromCache(path, resp, is_dl_callback) {
     loopQueue();
 }
 let options = {
-  
-}    
+
+}
 
 
 let req_handle = function (req, res) {
@@ -299,7 +300,7 @@ if (Config.protocol === "https") {
     options.key = Fs.readFileSync(Config.https.key);
     server = Https.createServer(options, req_handle);
 } else {
-     server = Http.createServer( req_handle);
+    server = Http.createServer(req_handle);
 }
 server.listen(Config.port, Config.addr);
 
