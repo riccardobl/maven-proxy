@@ -4,10 +4,18 @@
     "cache_dir": "/data",
     "listing":true,
     "protocol":"http",
+    "dont_cache_snapshots":false,
     "https":{
-        "cert":"/maven/config/cert.pem",
-        "key":"/maven/config/key.pem"
+        "cert":"/config/cert.pem",
+        "key":"/config/cert-key.pem"
     },
+    "auth":  [
+        {
+            "path":".*",
+            "user":"anonymous",
+            "password":"none"
+        }
+    ],
     "repos": [
         "https://repo1.maven.org/maven2/",
         "https://jitpack.io/",

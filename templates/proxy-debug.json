@@ -1,6 +1,6 @@
 {
     "addr":"0.0.0.0",
-    "port":8080,
+    "port":48889,
     "cache_dir": "./data",
     "listing":true,
     "protocol":"http",
@@ -8,6 +8,8 @@
         "cert":"/tmp/cert94-192.168.2.20/cert.pem",
         "key":"/tmp/cert94-192.168.2.20/cert-key.pem"
     },
+    "dont_cache_snapshots":true,
+    "auth": [],
     "repos": [
         "https://repo1.maven.org/maven2/",
         "https://jitpack.io/",

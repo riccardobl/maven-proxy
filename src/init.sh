@@ -10,23 +10,6 @@ then
     echo "$CONFIG_DATA" > "$CONFIG_FILE"
 fi
 
-
-if [ ! -f "$AUTH_FILE" ];
-then
-    cp "$AUTH_TEMPLATE"  "$AUTH_FILE" 
-fi
-
-if [ "$AUTH_DATA" != "" ];
-then
-    echo "$AUTH_DATA" > "$AUTH_FILE"
-fi
-
-if [ "$NO_AUTH" != "" ];
-then
-    AUTH_FILE="null"
-fi
-
-
 if [ "$SNAPSHOT_DURATION" != "0" -a "$SNAPSHOT_DURATION" != "" ];
 then
     while true ;
@@ -35,5 +18,7 @@ then
         sleep $SNAPSHOT_DURATION
     done &
 fi
+find /data  -type d -name "*.dl"  -exec rm  "{}" +
+find /data  -type d -name "*.lock"  -exec rm "{}" +
 
-node /proxy.js "$CONFIG_FILE" "$AUTH_FILE" $@ 
+node /proxy.js "$CONFIG_FILE"  $@ 

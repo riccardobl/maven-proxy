@@ -11,13 +11,12 @@ let config = process.argv[2];
 if (!config) config = "./proxy.json";
 console.log("Config file", config);
 
-let auth = process.argv[3];
-if (!auth) auth = "./auth.json";
-console.log("Auth file", auth);
+
 
 const Config = JSON.parse(Fs.readFileSync(config, 'utf8'));
 
-const Auth = auth==="null"?[]:JSON.parse(Fs.readFileSync(auth, 'utf8'));
+const Auth =Config.auth? Config.auth:[];
+
 
 console.log("Config", Config);
 
@@ -29,7 +28,7 @@ console.log("Config", Config);
  * are given to the completion callback.
  */
 function mkdir_p(path, mode, callback, position) {
-    console.log("mkdir -p", path);
+    // console.log("mkdir -p", path);
     mode = mode || 0777;
     position = position || 0;
     parts = require('path').normalize(path).split('/');
@@ -75,13 +74,35 @@ function loopQueue() {
 }
 setInterval(loopQueue, 1000 / 10);
 
+let Path = {
+    lock: function (path) {
+        Fs.writeFile(path + ".lock", "1", function () { });
+    },
+
+    unlock: function (path) {
+        Fs.unlink(path + ".lock", function () { });
+    },
+    isLocked: function (path) {
+       return Fs.existsSync(path + ".lock");
+    },
+    lockForDownload: function (path) {
+        Fs.writeFile(path + ".dl", "1", function () { });
+
+    },
+    unlockForDownload: function (path) {
+        if (Fs.existsSync(path + ".dl")) return true;
+    },
+    isLockedForDownload: function (path) {
+        return Fs.existsSync(path + ".dl");
+
+    }
+
+}
 
 function downloadToCache(path, resp) {
-    let lock = function () { Fs.writeFile(Config.cache_dir + "/" + path + ".lock", "1", function () { }); }
-    let unlock = function () { Fs.unlink(Config.cache_dir + "/" + path + ".lock", function () { }); }
-
+ 
     // Lock path
-    lock();
+    Path.lock(Config.cache_dir + "/" + path );
 
     // Check if artifact exists at given url
     // calls callback(true) if found
@@ -89,22 +110,22 @@ function downloadToCache(path, resp) {
         let req = Request(url)
             .on('response', function (response) {
                 if (response.statusCode === 200) {
-                    console.log("Found in", url);
+                    console.log(path,"Found in", url);
                     let outfs = Fs.createWriteStream(Config.cache_dir + "/" + path);
                     req.pipe(outfs)
                         .on('finish', function () {
                             callback(true);
-                            unlock(); // Everything has been written, unlock path
-                            getFromCache(path, resp); // Retrieve downloaded artifact
+                            Path.unlock(Config.cache_dir + "/" + path ); // Everything has been written, unlock path
+                            getFromCache(path, resp,true); // Retrieve downloaded artifact
                         }).on("error", function (error) {
                             console.error("Error", error);
                             outfs.close();
                             callback(false);
                         });
                 } else {
-                    console.log("Not found in", url);
+                    // console.log("Not found in", url);
                     callback(false);
-                    console.log(response.statusCode);
+                    // console.log(response.statusCode);
                 }
             })
 
@@ -123,8 +144,8 @@ function downloadToCache(path, resp) {
         if (repo_i >= Config.repos.length) {
             if (failed) {                
                 if (failed) {
-                    unlock();
-                    resp.writeHead(404, {"Content-Type": "text/plain"});
+                    Path.unlock(Config.cache_dir + "/" + path);
+                    resp.writeHead(404, { "Content-Type": "text/plain" });
                     resp.write("404 Not Found\n");
                     resp.end();
                 }
@@ -173,21 +194,47 @@ function listDirectory(cache_path, resp) {
 
 }
 
-function getFromCache(path, resp) {
+function getFromCache(path, resp, is_dl_callback) {
     // Queue the request. This is done to prevent multiple downloads for the same unavailable artifact
     // while it's being cached
     Queue.push(function () {
         let cache_path = Config.cache_dir + "/" + path;
         // Check if path is locked (ie if the artifact is being downloaded because of a previous request)
-        if (Fs.existsSync(cache_path + ".lock")) return false;
+        if (Path.isLocked(cache_path)) {
+            // console.log("skip");
+            return false;
+        }
+        Path.lock(cache_path);
+
+        if (!is_dl_callback&&Config.dont_cache_snapshots&&cache_path.substring(cache_path.indexOf("/")).indexOf("-SNAPSHOT") != -1 ) {
+            if (Path.isLockedForDownload(cache_path)) {
+                Path.unlock(cache_path);
+                // console.log("skip");
+                return false;
+            }
+            if (Fs.existsSync(cache_path)) {
+                console.log("Refresh snapshot", cache_path);
+                Fs.unlinkSync(cache_path);
+            }
+        }
 
         // Retuns from cache
         if (Fs.existsSync(cache_path)) {
+            Path.unlock(cache_path);
+            Path.lockForDownload(cache_path);
             if (!Fs.lstatSync(cache_path).isDirectory()) {
                 resp.writeHead(200, {
                     "Content-Type": "application/octet-stream"
                 });
-                Fs.createReadStream(Config.cache_dir + "/" + path).pipe(resp);
+                Fs.createReadStream(Config.cache_dir + "/" + path)
+                .on('end', function () { 
+                    Path.unlock(cache_path);
+                    }).on('error', function (err) {
+                        Path.unlock(cache_path);
+                        console.log(err);
+                        
+                    })
+                    .pipe(resp)
             } else {
                 listDirectory(cache_path,resp);
             }
@@ -202,6 +249,7 @@ function getFromCache(path, resp) {
                     resp.writeHead(500, {"Content-Type": "text/plain"});
                     resp.write("500 Server Error\n");
                     resp.end();
+                    Path.unlock(cache_path);
                 } else downloadToCache(path, resp);
             });
         }
