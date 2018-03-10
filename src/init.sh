@@ -18,7 +18,7 @@ then
         sleep $SNAPSHOT_DURATION
     done &
 fi
-find /data  -type d -name "*.dl"  -exec rm  "{}" +
-find /data  -type d -name "*.lock"  -exec rm "{}" +
+find /data  -type f -name "*.dl"  -exec rm  "{}" \;
+find /data  -type f -name "*.lock"  -exec rm "{}" \;
 
 node /proxy.js "$CONFIG_FILE"  $@ 
